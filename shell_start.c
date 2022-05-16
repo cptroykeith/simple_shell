@@ -84,8 +84,6 @@ char *check_path(char *file)
 	temp = _strdup(path);
 	if (temp == NULL)
 		return (NULL);
-
-	return (NULL);
 	token = strtok(temp, ":");
 	while (token)
 	{
