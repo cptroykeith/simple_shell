@@ -29,18 +29,14 @@ void __exit(char **tokens, char **history, int fd);
 void _env(char **tokens);
 char *check_path(char *file);
 int check_file(char *dirname, char *file);
-
 int _atoi(char *str);
-
 char *_strdup(char *str);
 int  _strlen(char *str);
 int _strcmp(const char *s1, const char *s2);
 char *_strcpy(char *dest, char *src);
 char *_strcat(char *s1, char *s2);
-
 void help(char **tokens);
 void sighandler(int sig_n);
-
 void printhistory(char **history);
 void updatehistory(char **history, int fd);
 
