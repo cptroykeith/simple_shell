@@ -1,130 +1,157 @@
 #include "shell.h"
 
-#define SETOWD(V) (V = _strdup(_getenv("OLDPWD")))
 /**
- * change_dir - changes directory
- * @data: a pointer to the data structure
- *
- * Return: (Success) 0 is returned
- * ------- (Fail) negative number will returned
+ * check_for_builtins - checks if the command is a builtin
+ * @vars: variables
+ * Return: pointer to the function or NULL
  */
-int change_dir(sh_t *data)
+void (*check_for_builtins(vars_t *vars))(vars_t *vars)
 {
-	char *home;
-
-	home = _getenv("HOME");
-	if (data->args[1] == NULL)
-	{
-		SETOWD(data->oldpwd);
-		if (chdir(home) < 0)
-			return (FAIL);
-		return (SUCCESS);
-	}
-	if (_strcmp(data->args[1], "-") == 0)
-	{
-		if (data->oldpwd == 0)
-		{
-			SETOWD(data->oldpwd);
-			if (chdir(home) < 0)
-				return (FAIL);
-		}
-		else
-		{
-			SETOWD(data->oldpwd);
-			if (chdir(data->oldpwd) < 0)
-				return (FAIL);
-		}
-	}
-	else
-	{
-		SETOWD(data->oldpwd);
-		if (chdir(data->args[1]) < 0)
-			return (FAIL);
-	}
-	return (SUCCESS);
-}
-#undef GETCWD
-/**
- * abort_prg - exit the program
- * @data: a pointer to the data structure
- *
- * Return: (Success) 0 is returned
- * ------- (Fail) negative number will returned
- */
-int abort_prg(sh_t *data __attribute__((unused)))
-{
-	int code, i = 0;
-
-	if (data->args[1] == NULL)
-	{
-		free_data(data);
-		exit(errno);
-	}
-	while (data->args[1][i])
-	{
-		if (_isalpha(data->args[1][i++]) < 0)
-		{
-			data->error_msg = _strdup("Illegal number\n");
-			return (FAIL);
-		}
-	}
-	code = _atoi(data->args[1]);
-	free_data(data);
-	exit(code);
-}
-/**
- * display_help - display the help menu
- * @data: a pointer to the data structure
- *
- * Return: (Success) 0 is returned
- * ------- (Fail) negative number will returned
- */
-int display_help(sh_t *data)
-{
-	int fd, fw, rd = 1;
-	char c;
-
-	fd = open(data->args[1], O_RDONLY);
-	if (fd < 0)
-	{
-		data->error_msg = _strdup("no help topics match\n");
-		return (FAIL);
-	}
-	while (rd > 0)
-	{
-		rd = read(fd, &c, 1);
-		fw = write(STDOUT_FILENO, &c, rd);
-		if (fw < 0)
-		{
-			data->error_msg = _strdup("cannot write: permission denied\n");
-			return (FAIL);
-		}
-	}
-	PRINT("\n");
-	return (SUCCESS);
-}
-/**
- * handle_builtin - handle and manage the builtins cmd
- * @data: a pointer to the data structure
- *
- * Return: (Success) 0 is returned
- * ------- (Fail) negative number will returned
- */
-int handle_builtin(sh_t *data)
-{
-	blt_t blt[] = {
-		{"exit", abort_prg},
-		{"cd", change_dir},
-		{"help", display_help},
+	unsigned int i;
+	builtins_t check[] = {
+		{"exit", new_exit},
+		{"env", _env},
+		{"setenv", new_setenv},
+		{"unsetenv", new_unsetenv},
 		{NULL, NULL}
 	};
-	int i = 0;
 
-	while ((blt + i)->cmd)
+	for (i = 0; check[i].f != NULL; i++)
 	{
-		if (_strcmp(data->args[0], (blt + i)->cmd) == 0)
-			return ((blt + i)->f(data));
-		i++;
+		if (_strcmpr(vars->av[0], check[i].name) == 0)
+			break;
 	}
-	return (FAIL);
+	if (check[i].f != NULL)
+		check[i].f(vars);
+	return (check[i].f);
+}
+
+/**
+ * new_exit - exit program
+ * @vars: variables
+ * Return: void
+ */
+void new_exit(vars_t *vars)
+{
+	int status;
+
+	if (_strcmpr(vars->av[0], "exit") == 0 && vars->av[1] != NULL)
+	{
+		status = _atoi(vars->av[1]);
+		if (status == -1)
+		{
+			vars->status = 2;
+			print_error(vars, ": Illegal number: ");
+			_puts2(vars->av[1]);
+			_puts2("\n");
+			free(vars->commands);
+			vars->commands = NULL;
+			return;
+		}
+		vars->status = status;
+	}
+	free(vars->buffer);
+	free(vars->av);
+	free(vars->commands);
+	free_env(vars->env);
+	exit(vars->status);
+}
+
+/**
+ * _env - prints the current environment
+ * @vars: struct of variables
+ * Return: void.
+ */
+void _env(vars_t *vars)
+{
+	unsigned int i;
+
+	for (i = 0; vars->env[i]; i++)
+	{
+		_puts(vars->env[i]);
+		_puts("\n");
+	}
+	vars->status = 0;
+}
+
+/**
+ * new_setenv - create a new environment variable, or edit an existing variable
+ * @vars: pointer to struct of variables
+ *
+ * Return: void
+ */
+void new_setenv(vars_t *vars)
+{
+	char **key;
+	char *var;
+
+	if (vars->av[1] == NULL || vars->av[2] == NULL)
+	{
+		print_error(vars, ": Incorrect number of arguments\n");
+		vars->status = 2;
+		return;
+	}
+	key = find_key(vars->env, vars->av[1]);
+	if (key == NULL)
+		add_key(vars);
+	else
+	{
+		var = add_value(vars->av[1], vars->av[2]);
+		if (var == NULL)
+		{
+			print_error(vars, NULL);
+			free(vars->buffer);
+			free(vars->commands);
+			free(vars->av);
+			free_env(vars->env);
+			exit(127);
+		}
+		free(*key);
+		*key = var;
+	}
+	vars->status = 0;
+}
+
+/**
+ * new_unsetenv - remove an environment variable
+ * @vars: pointer to a struct of variables
+ *
+ * Return: void
+ */
+void new_unsetenv(vars_t *vars)
+{
+	char **key, **newenv;
+
+	unsigned int i, j;
+
+	if (vars->av[1] == NULL)
+	{
+		print_error(vars, ": Incorrect number of arguments\n");
+		vars->status = 2;
+		return;
+	}
+	key = find_key(vars->env, vars->av[1]);
+	if (key == NULL)
+	{
+		print_error(vars, ": No variable to unset");
+		return;
+	}
+	for (i = 0; vars->env[i] != NULL; i++)
+		;
+	newenv = malloc(sizeof(char *) * i);
+	if (newenv == NULL)
+	{
+		print_error(vars, NULL);
+		vars->status = 127;
+		new_exit(vars);
+	}
+	for (i = 0; vars->env[i] != *key; i++)
+		newenv[i] = vars->env[i];
+	for (j = i + 1; vars->env[j] != NULL; j++, i++)
+		newenv[i] = vars->env[j];
+	newenv[i] = NULL;
+	free(*key);
+	free(vars->env);
+	vars->env = newenv;
+	vars->status = 0;
 }
