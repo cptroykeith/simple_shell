@@ -1,54 +1,80 @@
 #ifndef _SHELL_H_
 #define _SHELL_H_
-#include <stddef.h>
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <limits.h>
+#include <signal.h>
 
 /**
- * struct process_builtin - struct to hold a cmd & a fxn pointer
- * to hold the cmd
- * @cmd: cmd to execute
- * @execute_builtin: pointer to a fxn that takes a cmd & executes it
+ * struct variables - variables
+ * @av: command line arguments
+ * @buffer: buffer of command
+ * @env: environment variables
+ * @count: count of commands entered
+ * @argv: arguments at opening of shell
+ * @status: exit status
+ * @commands: commands to execute
  */
-
-struct process_builtin
+typedef struct variables
 {
-	char *cmd;
-	void (*execute_builtin)(char **tokens);
-};
+	char **av;
+	char *buffer;
+	char **env;
+	size_t count;
+	char **argv;
+	int status;
+	char **commands;
+} vars_t;
 
-typedef struct process_builtin builtin_t;
+/**
+ * struct builtins - struct for the builtin functions
+ * @name: name of builtin command
+ * @f: function for corresponding builtin
+ */
+typedef struct builtins
+{
+	char *name;
+	void (*f)(vars_t *);
+} builtins_t;
 
-extern char **environ;
+char **make_env(char **env);
+void free_env(char **env);
 
-void printprompt(void);
-int isbuiltin(const char *cmd);
-char **tokenize(char *input);
-void executebuiltin(char **tokens);
-int executecmd(const char *name, char *const argv[], char *const env[]);
-void __exit(char **tokens, char **history, int fd);
-void _env(char **tokens);
-char *check_path(char *file);
-int check_file(char *dirname, char *file);
+ssize_t _puts(char *str);
+char *_strdup(char *strtodup);
+int _strcmpr(char *strcmp1, char *strcmp2);
+char *_strcat(char *strc1, char *strc2);
+unsigned int _strlen(char *str);
 
+char **tokenize(char *buffer, char *delimiter);
+char **_realloc(char **ptr, size_t *size);
+char *new_strtok(char *str, const char *delim);
+
+void (*check_for_builtins(vars_t *vars))(vars_t *vars);
+void new_exit(vars_t *vars);
+void _env(vars_t *vars);
+void new_setenv(vars_t *vars);
+void new_unsetenv(vars_t *vars);
+
+void add_key(vars_t *vars);
+char **find_key(char **env, char *key);
+char *add_value(char *key, char *value);
 int _atoi(char *str);
 
-char *_strdup(char *str);
-int  _strlen(char *str);
-int _strcmp(const char *s1, const char *s2);
-char *_strcpy(char *dest, char *src);
-char *_strcat(char *s1, char *s2);
+void check_for_path(vars_t *vars);
+int path_execute(char *command, vars_t *vars);
+char *find_path(char **env);
+int execute_cwd(vars_t *vars);
+int check_for_dir(char *str);
 
-void help(char **tokens);
-void sighandler(int sig_n);
-
-void printhistory(char **history);
-void updatehistory(char **history, int fd);
-
-char *_strtok(char *str, char *delim);
-int isdelim(char ch, char *delim);
-ssize_t _getline(char **lineptr, size_t *n, int fd);
-void *_realloc(void *ptr, size_t old_size, size_t new_size);
-char *_memcpy(char *dest, char *src, unsigned int n);
+void print_error(vars_t *vars, char *msg);
+void _puts2(char *str);
+char *_uitoa(unsigned int count);
 
 #endif /* _SHELL_H_ */
-
